@@ -8,6 +8,7 @@ on:
 
 env:
   TZ: Asia/Shanghai
+  PYTHONUNBUFFERED: "1"
 
 permissions:
   contents: write
@@ -35,12 +36,20 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
+      - name: Verify Playwright installation
+        run: |
+          echo "=== 验证 Playwright 安装 ==="
+          python -c "from playwright.sync_api import sync_playwright; print('Playwright 导入成功')"
+          echo "=== 检查 Chromium ==="
+          python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); b = p.chromium.launch(headless=True); print('Chromium 启动成功'); b.close(); p.stop()"
+      
       - name: Restore auth state from secret
         run: |
           echo '${{ secrets.AUTH_STATE_JSON }}' > auth_state.json
+          echo "auth_state.json 文件大小: $(wc -c < auth_state.json) 字节"
       
       - name: Run scraper
-        run: python scraper.py
+        run: python -u scraper.py
         timeout-minutes: 30
       
       - name: Clean up sensitive files

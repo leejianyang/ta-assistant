@@ -15,12 +15,26 @@ GitHub Actions 使用方法：
 
 import os
 import sys
+
+# 在 CI 环境中禁用输出缓冲
+if os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true":
+    # 强制使用无缓冲输出
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+
+print("[DEBUG] 脚本开始执行...", flush=True)
+
 import json
 import re
 import time
 from datetime import datetime
 from pathlib import Path
+
+print("[DEBUG] 基础模块导入完成", flush=True)
+
 from playwright.sync_api import sync_playwright, Page, Browser
+
+print("[DEBUG] Playwright 导入完成", flush=True)
 
 # 配置
 BASE_URL = "https://www.nytimes.com/athletic"
@@ -238,16 +252,19 @@ def get_article_links(page: Page, debug: bool = True) -> list[dict]:
     """
     从新闻页面获取所有文章链接
     """
-    print(f"正在访问: {NEWS_URL}")
-    if not goto_with_retry(page, NEWS_URL, wait_until="networkidle", timeout=300000):
-        print("无法加载新闻页面")
+    print(f"正在访问: {NEWS_URL}", flush=True)
+    # 使用 domcontentloaded 而不是 networkidle，避免在 CI 环境中无限等待
+    if not goto_with_retry(page, NEWS_URL, wait_until="domcontentloaded", timeout=120000):
+        print("无法加载新闻页面", flush=True)
         return []
+    print("✓ 页面 DOM 加载完成", flush=True)
     time.sleep(3)
     
     # 滚动页面以加载更多内容
-    print("滚动页面加载更多内容...")
-    for _ in range(5):
+    print("滚动页面加载更多内容...", flush=True)
+    for i in range(5):
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        print(f"  滚动 {i+1}/5", flush=True)
         time.sleep(2)
     
     # 滚回顶部
@@ -326,7 +343,7 @@ def extract_article_content(page: Page, url: str, save_html: bool = False) -> di
     """
     try:
         # 带重试的页面加载
-        if not goto_with_retry(page, url, wait_until="domcontentloaded", timeout=300000):
+        if not goto_with_retry(page, url, wait_until="domcontentloaded", timeout=120000):
             return {
                 "url": url,
                 "error": "页面加载失败（多次重试后）",
@@ -514,19 +531,34 @@ def launch_browser(p, with_cookie: bool = False):
     # 尝试启动浏览器
     for browser_type, name in browser_order:
         try:
-            print(f"尝试启动 {name} 浏览器...")
+            print(f"尝试启动 {name} 浏览器...", flush=True)
             if name == "Chromium":
+                # CI 环境需要更多参数来确保稳定性
+                chromium_args = [
+                    '--disable-gpu',
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-setuid-sandbox',
+                    '--disable-background-networking',
+                    '--disable-default-apps',
+                    '--disable-extensions',
+                    '--disable-sync',
+                    '--disable-translate',
+                    '--metrics-recording-only',
+                    '--no-first-run',
+                    '--safebrowsing-disable-auto-update',
+                ]
                 browser = browser_type.launch(
                     headless=headless,
-                    slow_mo=50 if is_ci else 100,
-                    args=['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage']
+                    slow_mo=0 if is_ci else 100,
+                    args=chromium_args
                 )
             else:
-                browser = browser_type.launch(headless=headless, slow_mo=50 if is_ci else 100)
-            print(f"✓ {name} 启动成功")
+                browser = browser_type.launch(headless=headless, slow_mo=0 if is_ci else 100)
+            print(f"✓ {name} 启动成功", flush=True)
             break
         except Exception as e:
-            print(f"{name} 启动失败: {e}")
+            print(f"{name} 启动失败: {e}", flush=True)
     
     if browser is None:
         print("所有浏览器都无法启动，请运行: playwright install chromium")
@@ -554,17 +586,24 @@ def main():
       python scraper.py --login   # 手动登录并保存 Cookie
       python scraper.py           # 使用已保存的 Cookie 进行爬取
     """
+    print("[DEBUG] main() 函数开始执行", flush=True)
     
     # 解析命令行参数
     login_mode = "--login" in sys.argv
     debug_mode = "--debug" in sys.argv  # 调试模式：只抓取第一篇文章
     save_html = "--save-html" in sys.argv  # 保存HTML文件用于调试
     
+    is_ci = is_ci_environment()
+    print(f"[DEBUG] CI 环境: {is_ci}", flush=True)
+    print(f"[DEBUG] Cookie 文件存在: {COOKIE_FILE.exists()}", flush=True)
+    
     print("=" * 60)
     print("The Athletic 文章爬虫")
     print("=" * 60)
     
+    print("[DEBUG] 准备启动 Playwright...", flush=True)
     with sync_playwright() as p:
+        print("[DEBUG] Playwright 启动成功", flush=True)
         
         # 登录模式：手动登录并保存 Cookie
         if login_mode:
