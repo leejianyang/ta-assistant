@@ -117,8 +117,8 @@ def generate_summary(client: OpenAI, prompt: str, article: dict) -> tuple[str, i
                 messages=[
                     {"role": "user", "content": user_message}
                 ],
-                max_tokens=500,
-                temperature=0.7,
+                max_tokens=4096,
+                temperature=0.2,
                 timeout=API_TIMEOUT,
             )
             
