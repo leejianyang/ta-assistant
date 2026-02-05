@@ -9,6 +9,9 @@ on:
 env:
   TZ: Asia/Shanghai
 
+permissions:
+  contents: write
+
 jobs:
   summary:
     runs-on: ubuntu-latest
