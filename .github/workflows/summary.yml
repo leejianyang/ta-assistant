@@ -8,6 +8,7 @@ on:
 
 env:
   TZ: Asia/Shanghai
+  DATA_BRANCH: data
 
 permissions:
   contents: write
@@ -17,13 +18,23 @@ jobs:
     runs-on: ubuntu-22.04
     
     steps:
-      - name: Checkout repository
+      - name: Checkout data branch
         uses: actions/checkout@v4
         with:
+          ref: data
           fetch-depth: 0
       
-      - name: Pull latest changes
-        run: git pull origin main
+      - name: Sync code from main branch
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # 从 main 分支同步代码文件
+          echo "同步 main 分支代码..."
+          git fetch origin main
+          git checkout origin/main -- '*.py' '*.txt' '*.md' 'requirements.txt' '.github/' '.gitignore' 2>/dev/null || true
+          
+          echo "当前分支: $(git branch --show-current)"
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -48,10 +59,12 @@ jobs:
         run: |
           rm -f .env
       
-      - name: Commit and push changes
+      - name: Commit and push to data branch
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
           git add summary/
-          git diff --staged --quiet || git commit -m "📝 Daily summary: $(date +'%Y-%m-%d')"
-          git push
+          if git diff --staged --quiet; then
+            echo "没有新摘要需要提交"
+          else
+            git commit -m "📝 Daily summary: $(date +'%Y-%m-%d')"
+            git push origin $DATA_BRANCH
+          fi

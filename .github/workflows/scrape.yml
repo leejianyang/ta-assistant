@@ -9,6 +9,7 @@ on:
 env:
   TZ: Asia/Shanghai
   PYTHONUNBUFFERED: "1"
+  DATA_BRANCH: data
 
 permissions:
   contents: write
@@ -18,10 +19,41 @@ jobs:
     runs-on: ubuntu-22.04
     
     steps:
-      - name: Checkout repository
+      - name: Checkout main branch (for code)
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
+      
+      - name: Setup data branch
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # 检查 data 分支是否存在
+          if git ls-remote --exit-code --heads origin $DATA_BRANCH; then
+            echo "✓ data 分支已存在，切换到该分支"
+            git fetch origin $DATA_BRANCH
+            git checkout $DATA_BRANCH
+            
+            # 将 main 分支的代码文件同步过来（排除 articles/ 和 summary/）
+            echo "同步 main 分支代码..."
+            git checkout main -- '*.py' '*.txt' '*.md' 'requirements.txt' '.github/' '.gitignore' 2>/dev/null || true
+          else
+            echo "✓ 创建孤儿分支 data"
+            git checkout --orphan $DATA_BRANCH
+            
+            # 保留代码文件，创建数据目录
+            mkdir -p articles summary
+            echo "{}" > articles/index.json
+            
+            # 首次提交
+            git add .
+            git commit -m "🎉 Initialize data branch"
+            git push -u origin $DATA_BRANCH
+          fi
+          
+          echo "当前分支: $(git branch --show-current)"
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -58,10 +90,12 @@ jobs:
         run: |
           rm -f auth_state.json
       
-      - name: Commit and push changes
+      - name: Commit and push to data branch
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
           git add articles/
-          git diff --staged --quiet || git commit -m "📰 Scrape articles: $(date +'%Y-%m-%d %H:%M')"
-          git push
+          if git diff --staged --quiet; then
+            echo "没有新文章需要提交"
+          else
+            git commit -m "📰 Scrape articles: $(date +'%Y-%m-%d %H:%M')"
+            git push origin $DATA_BRANCH
+          fi
