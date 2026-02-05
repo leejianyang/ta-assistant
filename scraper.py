@@ -627,6 +627,30 @@ def main():
         page = context.new_page()
         
         try:
+            # 验证登录状态
+            print("🔍 验证登录状态...", flush=True)
+            page.goto("https://www.nytimes.com/athletic/", wait_until="domcontentloaded", timeout=60000)
+            time.sleep(2)
+            
+            # 检查是否有登录按钮（未登录状态）或用户菜单（已登录状态）
+            login_button = page.locator('a[href*="/login"], button:has-text("Log In"), a:has-text("Log In")')
+            subscribe_button = page.locator('a[href*="/subscribe"], button:has-text("Subscribe")')
+            
+            # 检查页面上的登录/订阅按钮
+            has_login = login_button.count() > 0
+            has_subscribe = subscribe_button.count() > 0
+            
+            # 打印当前页面的 cookies
+            cookies = context.cookies()
+            athletic_cookies = [c for c in cookies if 'athletic' in c.get('domain', '') or 'nytimes' in c.get('domain', '')]
+            print(f"  当前会话 cookies 数量: {len(cookies)} (athletic/nytimes相关: {len(athletic_cookies)})", flush=True)
+            
+            if has_login or has_subscribe:
+                print("⚠️  警告: 检测到登录/订阅按钮，可能未成功登录！", flush=True)
+                print("  请检查 AUTH_STATE_JSON secret 是否正确设置", flush=True)
+            else:
+                print("✓ 登录状态验证通过", flush=True)
+            
             # 加载文章索引（用于去重）
             index = load_index()
             print(f"✓ 已加载索引，历史抓取文章数: {len(index)}")

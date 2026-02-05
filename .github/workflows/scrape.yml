@@ -47,6 +47,8 @@ jobs:
         run: |
           echo '${{ secrets.AUTH_STATE_JSON }}' > auth_state.json
           echo "auth_state.json 文件大小: $(wc -c < auth_state.json) 字节"
+          echo "=== 检查 auth_state.json 结构 ==="
+          python -c "import json; f=open('auth_state.json'); d=json.load(f); print(f'cookies数量: {len(d.get(\"cookies\", []))}'); print(f'origins数量: {len(d.get(\"origins\", []))}'); [print(f'  - {c[\"name\"]}: {c[\"domain\"]}') for c in d.get('cookies', [])[:5]]"
       
       - name: Run scraper
         run: python -u scraper.py
