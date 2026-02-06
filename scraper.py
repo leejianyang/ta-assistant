@@ -27,8 +27,20 @@ print("[DEBUG] 脚本开始执行...", flush=True)
 import json
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+
+# 时区处理
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    # Python < 3.9 使用 pytz
+    try:
+        import pytz
+        def ZoneInfo(name):
+            return pytz.timezone(name)
+    except ImportError:
+        raise ImportError("需要 zoneinfo (Python 3.9+) 或 pytz 库来处理时区")
 
 print("[DEBUG] 基础模块导入完成", flush=True)
 
@@ -59,43 +71,105 @@ RETRY_DELAY = 5  # 秒
 def get_output_dir_by_date(date_str: str = None) -> Path:
     """
     根据日期获取输出目录，格式：articles/YYYYMMDD/
+    日期按照英国伦敦时间（GMT/BST）来划分
     
     Args:
-        date_str: 日期字符串，如果为None或解析失败，使用今天的日期
+        date_str: 日期字符串，例如 "Feb. 6, 2026Updated 12:17 am GMT+8"
+                  如果为None或解析失败，使用今天的日期（伦敦时间）
     """
     folder_date = None
+    london_tz = ZoneInfo("Europe/London")
     
     if date_str:
-        # 尝试解析各种日期格式
-        # 例如: "Jan. 30, 2026", "2026-01-30", "January 30, 2026" 等
-        import re
-        
-        # 尝试提取年月日
-        # 格式1: "Jan. 30, 2026" 或 "January 30, 2026"
+        # 尝试解析日期、时间和时区信息
         month_map = {
-            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
-            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
-            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4,
+            'may': 5, 'jun': 6, 'jul': 7, 'aug': 8,
+            'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
         }
         
-        # 匹配 "Mon. DD, YYYY" 或 "Month DD, YYYY"
-        match = re.search(r'([a-zA-Z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})', date_str)
-        if match:
-            month_abbr = match.group(1)[:3].lower()
-            day = match.group(2).zfill(2)
-            year = match.group(3)
-            if month_abbr in month_map:
-                folder_date = f"{year}{month_map[month_abbr]}{day}"
+        # 解析格式: "Feb. 6, 2026Updated 12:17 am GMT+8"
+        # 或类似格式: "Jan. 30, 2026 3:45 pm GMT-5"
         
-        # 格式2: "YYYY-MM-DD" 或 ISO 格式
+        # 1. 提取日期部分: "Feb. 6, 2026" 或 "January 30, 2026"
+        date_match = re.search(r'([a-zA-Z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})', date_str)
+        
+        # 2. 提取时间部分: "12:17 am" 或 "3:45 pm"
+        time_match = re.search(r'(\d{1,2}):(\d{2})\s*(am|pm)', date_str, re.IGNORECASE)
+        
+        # 3. 提取时区部分: "GMT+8", "GMT-5", "UTC+8" 等
+        tz_match = re.search(r'(GMT|UTC)([+-])(\d+)', date_str, re.IGNORECASE)
+        
+        if date_match:
+            month_abbr = date_match.group(1)[:3].lower()
+            day = int(date_match.group(2))
+            year = int(date_match.group(3))
+            
+            if month_abbr in month_map:
+                month = month_map[month_abbr]
+                
+                # 解析时间（如果存在）
+                hour = 0
+                minute = 0
+                if time_match:
+                    hour = int(time_match.group(1))
+                    minute = int(time_match.group(2))
+                    am_pm = time_match.group(3).lower()
+                    
+                    # 转换为24小时制
+                    if am_pm == 'pm' and hour != 12:
+                        hour += 12
+                    elif am_pm == 'am' and hour == 12:
+                        hour = 0
+                
+                # 解析时区偏移（如果存在）
+                tz_offset_hours = 0
+                if tz_match:
+                    sign = tz_match.group(2)
+                    offset = int(tz_match.group(3))
+                    tz_offset_hours = offset if sign == '+' else -offset
+                
+                try:
+                    # 创建带时区的 datetime 对象
+                    # 假设原始时间是 GMT+offset 时区
+                    
+                    # 创建原始时间的 datetime（无时区信息）
+                    dt_naive = datetime(year, month, day, hour, minute)
+                    
+                    # 计算 UTC 时间（GMT = UTC）
+                    # 如果原始时间是 GMT+8，那么 UTC = 原始时间 - 8小时
+                    dt_utc = dt_naive - timedelta(hours=tz_offset_hours)
+                    
+                    # 转换为伦敦时间
+                    dt_utc = dt_utc.replace(tzinfo=ZoneInfo("UTC"))
+                    dt_london = dt_utc.astimezone(london_tz)
+                    
+                    # 根据伦敦时间确定文件夹日期
+                    folder_date = dt_london.strftime("%Y%m%d")
+                except Exception as e:
+                    print(f"  警告: 解析日期时出错: {e}，使用原始日期")
+                    # 如果转换失败，使用原始日期
+                    folder_date = f"{year}{month:02d}{day:02d}"
+        
+        # 如果上面的解析失败，尝试简单的日期格式: "YYYY-MM-DD"
         if not folder_date:
             match = re.search(r'(\d{4})-(\d{2})-(\d{2})', date_str)
             if match:
-                folder_date = f"{match.group(1)}{match.group(2)}{match.group(3)}"
+                # 对于简单格式，假设是 UTC 时间，转换为伦敦时间
+                try:
+                    year = int(match.group(1))
+                    month = int(match.group(2))
+                    day = int(match.group(3))
+                    dt_utc = datetime(year, month, day, tzinfo=ZoneInfo("UTC"))
+                    dt_london = dt_utc.astimezone(london_tz)
+                    folder_date = dt_london.strftime("%Y%m%d")
+                except:
+                    folder_date = f"{match.group(1)}{match.group(2)}{match.group(3)}"
     
-    # 如果解析失败，使用今天的日期
+    # 如果解析失败，使用今天的日期（伦敦时间）
     if not folder_date:
-        folder_date = datetime.now().strftime("%Y%m%d")
+        now_london = datetime.now(london_tz)
+        folder_date = now_london.strftime("%Y%m%d")
     
     output_dir = ARTICLES_DIR / folder_date
     output_dir.mkdir(exist_ok=True)
