@@ -153,7 +153,7 @@ def generate_summary(client: OpenAI, prompt: str, article: dict) -> tuple[str, i
 def format_summary_output(articles_with_summary: list[dict], date_str: str) -> str:
     """格式化摘要输出"""
     lines = []
-    separator = "\n" + "=" * 80 + "\n"
+    separator = "\n" + "=" * 20 + "\n"
     
     # 解析日期字符串 (YYYYMMDD -> xxxx年xx月xx日)
     year = date_str[:4]
@@ -263,7 +263,6 @@ def main():
     output_content = format_summary_output(articles_with_summary, date_str)
     
     # 在末尾添加 token 消耗统计
-    output_content += f"\n{'─' * 60}\n"
     output_content += f"本次预计消耗 Token 数：{total_tokens:,}\n"
     
     with open(output_file, "w", encoding="utf-8") as f:
