@@ -12,8 +12,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout data branch
         uses: actions/checkout@v4
+        with:
+          ref: data
+          fetch-depth: 0
+      
+      - name: Sync code from main branch
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # 从 main 分支同步代码文件
+          echo "同步 main 分支代码..."
+          git fetch origin main
+          git checkout origin/main -- '*.py' '*.txt' '*.md' 'requirements.txt' '.github/' '.gitignore' 2>/dev/null || true
+          
+          echo "当前分支: $(git branch --show-current)"
 
       - name: Set up Python
         uses: actions/setup-python@v5
