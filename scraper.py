@@ -29,6 +29,10 @@ import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+import urllib.request
+import urllib.error
+import ssl
+from dotenv import load_dotenv
 
 # 时区处理
 try:
@@ -47,6 +51,13 @@ print("[DEBUG] 基础模块导入完成", flush=True)
 from playwright.sync_api import sync_playwright, Page, Browser
 
 print("[DEBUG] Playwright 导入完成", flush=True)
+
+# 加载 .env 环境变量
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(dotenv_path=BASE_DIR / ".env")
+
+# 飞书机器人 Webhook 环境变量名
+FEISHU_WEBHOOK_ENV = "FEISHU_WEBHOOK_URL"
 
 # 配置
 BASE_URL = "https://www.nytimes.com/athletic"
@@ -583,6 +594,224 @@ def is_ci_environment() -> bool:
     return os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
 
 
+def send_feishu_alert(error_msg: str) -> bool:
+    """
+    发送飞书告警消息
+    
+    Args:
+        error_msg: 告警消息内容，包含尽可能多的调试信息
+    
+    Returns:
+        bool: 是否发送成功
+    """
+    webhook_url = os.getenv(FEISHU_WEBHOOK_ENV)
+    if not webhook_url:
+        print(f"⚠️  警告: 环境变量 {FEISHU_WEBHOOK_ENV} 未设置，无法发送飞书告警", flush=True)
+        return False
+    
+    body = {
+        "msg_type": "alert",
+        "content": {
+            "msg": error_msg,
+        },
+    }
+    
+    try:
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        
+        req = urllib.request.Request(
+            webhook_url,
+            data=data,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST",
+        )
+        
+        # SSL 配置：默认校验证书
+        ssl_context = ssl.create_default_context()
+        
+        # 显式关闭系统环境中的 HTTP/HTTPS 代理，避免公司代理导致 SSL 异常
+        proxy_handler = urllib.request.ProxyHandler({})
+        https_handler = urllib.request.HTTPSHandler(context=ssl_context)
+        opener = urllib.request.build_opener(proxy_handler, https_handler)
+        
+        # 直接请求飞书，不经过任何代理
+        with opener.open(req, timeout=10) as resp:
+            resp_text = resp.read().decode("utf-8", errors="replace")
+            print(f"✓ 飞书告警发送成功: {resp_text[:100]}", flush=True)
+            return True
+    except Exception as e:
+        print(f"✗ 发送飞书告警失败: {e}", flush=True)
+        return False
+
+
+def format_browser_launch_failed_alert(is_ci: bool) -> str:
+    """生成浏览器启动失败的告警消息"""
+    return f"""抓取失败：无法启动浏览器
+
+调试信息：
+- 时间: {datetime.now().isoformat()}
+- CI环境: {is_ci}
+- Cookie文件存在: {COOKIE_FILE.exists()}
+- Python版本: {sys.version}
+
+可能的原因：
+1. Playwright 浏览器未正确安装
+2. 系统资源不足
+3. 权限问题
+
+建议：
+1. 运行 playwright install chromium 安装浏览器
+2. 检查系统资源和权限
+3. 查看完整错误日志"""
+
+
+def format_homepage_access_failed_alert(e: Exception, is_ci: bool) -> str:
+    """生成无法访问网站首页的告警消息"""
+    return f"""抓取失败：无法访问网站首页
+
+调试信息：
+- 时间: {datetime.now().isoformat()}
+- 错误类型: {type(e).__name__}
+- 错误信息: {str(e)}
+- CI环境: {is_ci}
+- Cookie文件存在: {COOKIE_FILE.exists()}
+- 目标URL: https://www.nytimes.com/athletic/
+
+可能的原因：
+1. 网络连接问题
+2. 网站服务器故障
+3. 防火墙或代理问题
+
+建议：
+1. 检查网络连接
+2. 手动访问网站确认可访问性
+3. 检查代理设置"""
+
+
+def format_login_verification_failed_alert(has_login: bool, has_subscribe: bool, is_ci: bool, 
+                                            cookies: list, page) -> str:
+    """生成登录状态验证失败的告警消息"""
+    athletic_cookies = [c for c in cookies if 'athletic' in c.get('domain', '') or 'nytimes' in c.get('domain', '')]
+    page_title = page.title() if page else 'N/A'
+    page_url = page.url if page else 'N/A'
+    
+    return f"""抓取失败：登录状态验证失败
+
+调试信息：
+- 时间: {datetime.now().isoformat()}
+- 检测到登录按钮: {has_login}
+- 检测到订阅按钮: {has_subscribe}
+- CI环境: {is_ci}
+- Cookie文件存在: {COOKIE_FILE.exists()}
+- Cookie文件路径: {COOKIE_FILE.absolute()}
+- Cookies数量: {len(cookies)}
+- Athletic相关Cookies: {len(athletic_cookies)}
+- 页面标题: {page_title}
+- 页面URL: {page_url}
+
+可能的原因：
+1. Cookie已过期，需要重新登录
+2. AUTH_STATE_JSON secret 未正确设置或已失效
+3. 网站登录机制发生变化
+
+建议：
+1. 运行 python scraper.py --login 重新登录
+2. 检查 GitHub Secrets 中的 AUTH_STATE_JSON 是否正确
+3. 更新 auth_state.json 文件内容"""
+
+
+def format_no_articles_found_alert(is_ci: bool, page) -> str:
+    """生成未找到文章链接的告警消息"""
+    page_title = page.title() if page else 'N/A'
+    page_url = page.url if page else 'N/A'
+    
+    return f"""抓取失败：未找到任何文章链接
+
+调试信息：
+- 时间: {datetime.now().isoformat()}
+- 新闻页面URL: {NEWS_URL}
+- CI环境: {is_ci}
+- Cookie文件存在: {COOKIE_FILE.exists()}
+- 页面标题: {page_title}
+- 页面URL: {page_url}
+
+可能的原因：
+1. 页面结构发生变化，选择器无法匹配文章链接
+2. 网络问题导致页面加载不完整
+3. 登录状态失效，需要重新登录
+4. 网站反爬虫机制触发
+
+建议：
+1. 检查 debug_page.html 文件查看页面实际内容
+2. 运行 python scraper.py --login 重新登录
+3. 检查网络连接和网站可访问性"""
+
+
+def format_all_articles_extraction_failed_alert(new_articles: list, success_count: int, 
+                                                failed_articles: list, is_ci: bool, browser) -> str:
+    """生成所有文章提取失败的告警消息"""
+    error_details = "\n".join([
+        f"- {art['title'][:50]}...\n  URL: {art['url']}\n  错误: {art['error']}"
+        for art in failed_articles
+    ])
+    browser_type = type(browser).__name__ if browser else 'N/A'
+    
+    return f"""抓取失败：所有文章提取失败
+
+调试信息：
+- 时间: {datetime.now().isoformat()}
+- 尝试抓取文章数: {len(new_articles)}
+- 成功提取: {success_count}
+- 失败数量: {len(failed_articles)}
+- CI环境: {is_ci}
+- Cookie文件存在: {COOKIE_FILE.exists()}
+- 浏览器类型: {browser_type}
+
+失败详情：
+{error_details}
+
+可能的原因：
+1. 页面结构发生变化，内容选择器无法匹配
+2. 登录状态失效，无法访问付费内容
+3. 网络问题导致页面加载不完整
+4. 网站反爬虫机制触发
+
+建议：
+1. 检查 debug_article.html 文件查看页面实际内容
+2. 运行 python scraper.py --login 重新登录
+3. 检查网络连接和网站可访问性"""
+
+
+def format_unexpected_exception_alert(e: Exception, is_ci: bool) -> str:
+    """生成未预期异常的告警消息"""
+    import traceback
+    error_traceback = traceback.format_exc()
+    
+    return f"""抓取失败：发生未预期的异常
+
+调试信息：
+- 时间: {datetime.now().isoformat()}
+- 异常类型: {type(e).__name__}
+- 异常信息: {str(e)}
+- CI环境: {is_ci}
+- Cookie文件存在: {COOKIE_FILE.exists()}
+- Python版本: {sys.version}
+
+完整堆栈跟踪：
+{error_traceback}
+
+可能的原因：
+1. 代码逻辑错误
+2. 环境配置问题
+3. 依赖库版本不兼容
+4. 系统资源问题
+
+建议：
+1. 检查完整错误堆栈跟踪
+2. 确认依赖库版本是否正确
+3. 检查系统资源和权限"""
+
+
 def launch_browser(p, with_cookie: bool = False):
     """
     启动浏览器，可选择性地加载已保存的 Cookie
@@ -696,6 +925,7 @@ def main():
         # 启动浏览器并加载 Cookie
         browser, context = launch_browser(p, with_cookie=True)
         if browser is None:
+            send_feishu_alert(format_browser_launch_failed_alert(is_ci))
             return
         
         page = context.new_page()
@@ -703,8 +933,12 @@ def main():
         try:
             # 验证登录状态
             print("🔍 验证登录状态...", flush=True)
-            page.goto("https://www.nytimes.com/athletic/", wait_until="domcontentloaded", timeout=60000)
-            time.sleep(2)
+            try:
+                page.goto("https://www.nytimes.com/athletic/", wait_until="domcontentloaded", timeout=60000)
+                time.sleep(2)
+            except Exception as e:
+                send_feishu_alert(format_homepage_access_failed_alert(e, is_ci))
+                return
             
             # 检查是否有登录按钮（未登录状态）或用户菜单（已登录状态）
             login_button = page.locator('a[href*="/login"], button:has-text("Log In"), a:has-text("Log In")')
@@ -722,6 +956,9 @@ def main():
             if has_login or has_subscribe:
                 print("⚠️  警告: 检测到登录/订阅按钮，可能未成功登录！", flush=True)
                 print("  请检查 AUTH_STATE_JSON secret 是否正确设置", flush=True)
+                send_feishu_alert(format_login_verification_failed_alert(
+                    has_login, has_subscribe, is_ci, cookies, page
+                ))
             else:
                 print("✓ 登录状态验证通过", flush=True)
             
@@ -734,6 +971,7 @@ def main():
             
             if not articles:
                 print("未找到任何文章链接")
+                send_feishu_alert(format_no_articles_found_alert(is_ci, page))
                 return
             
             # 过滤已抓取的文章
@@ -749,6 +987,7 @@ def main():
             
             if not new_articles:
                 print("没有新文章需要抓取")
+                # 这种情况不算失败，不需要告警
                 return
             
             # 提取每篇文章内容
@@ -762,6 +1001,7 @@ def main():
             
             all_articles = []
             success_count = 0
+            failed_articles = []
             
             for i, article_info in enumerate(new_articles, 1):
                 print(f"[{i}/{len(new_articles)}] 正在提取: {article_info['title'][:50]}...")
@@ -774,6 +1014,11 @@ def main():
                 content_len = len(article_data.get("content", ""))
                 if "error" in article_data:
                     print(f"  ✗ 提取失败: {article_data['error']}")
+                    failed_articles.append({
+                        "title": article_info.get("title", "未知标题"),
+                        "url": article_info["url"],
+                        "error": article_data["error"]
+                    })
                 else:
                     # 根据发布日期确定存储目录
                     published_date = article_data.get("published_date", "")
@@ -791,6 +1036,12 @@ def main():
                 # 添加延迟，避免请求过快
                 time.sleep(2)
             
+            # 如果所有文章都提取失败，发送告警
+            if len(new_articles) > 0 and success_count == 0:
+                send_feishu_alert(format_all_articles_extraction_failed_alert(
+                    new_articles, success_count, failed_articles, is_ci, browser
+                ))
+            
             # 保存索引
             save_index(index)
             print(f"✓ 索引已更新，当前总文章数: {len(index)}")
@@ -800,10 +1051,16 @@ def main():
             print(f"  - 本次抓取: {len(new_articles)} 篇")
             print(f"  - 成功提取: {success_count} 篇")
             print(f"  - 跳过已抓取: {skipped_count} 篇")
+            if failed_articles:
+                print(f"  - 提取失败: {len(failed_articles)} 篇")
             print(f"  - 输出目录: {ARTICLES_DIR.absolute()} (按发布日期分目录)")
             print(f"  - 索引文件: {INDEX_FILE.absolute()}")
             print("=" * 60)
             
+        except Exception as e:
+            # 捕获所有未预期的异常
+            send_feishu_alert(format_unexpected_exception_alert(e, is_ci))
+            raise  # 重新抛出异常，让调用者知道失败
         finally:
             browser.close()
 
