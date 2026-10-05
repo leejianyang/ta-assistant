@@ -1,0 +1,35 @@
+以下为2026年10月4日 The Athletic 要闻综述，共3篇文章，内容综述如下：
+
+====================
+【1】无标题
+
+📝 摘要：
+（文章内容为空，无法生成摘要）
+
+🔗 原文链接：https://www.nytimes.com/athletic/7660397/2026/10/04/justin-herbert-sam-darnold-interceptions-first-two-plays/
+====================
+【2】Ravens handle Titans; can they survive Lamar Jackson’s absence among series of injuries?
+
+📝 摘要：
+**中文摘要：**
+
+巴尔的摩乌鸦队（Baltimore Ravens）以24-18击败田纳西泰坦队（Tennessee Titans），但核心四分卫拉马尔·杰克逊（Lamar Jackson）在上半场最后一次进攻中脚踝受伤离场，未再回归。替补泰勒·亨特利（Tyler Huntley）下半场未能带领球队得分，乌鸦队四次弃踢并射失一记40码任意球。乌鸦队防守组下半场稳住阵脚，最终守住胜局。杰克逊伤退前表现出色，20传15中，推进222码并送出两次达阵。乌鸦队还损失了右护锋安德鲁·沃希斯（Andrew Vorhees，脚部）、近端锋达勒姆·斯迈思（Durham Smythe，跟腱）和角卫马龙·汉弗莱（Marlon Humphrey，小腿）。乌鸦队战绩来到3胜1负，与克利夫兰布朗队（Cleveland Browns）并列美联北区榜首；泰坦队则降至0胜4负。
+
+🔗 原文链接：https://www.nytimes.com/athletic/7659252/2026/10/04/titans-ravens-nfl-2026-score-result-takeaways/
+====================
+【3】Day 1 of Division Series delivered no-hit history, a 4-inning save and the latest dome debate
+
+📝 摘要：
+**摘要：**
+
+美联分区系列赛首日上演多项罕见戏码。坦帕湾光芒（Tampa Bay Rays）王牌投手Drew Rasmussen在对纽约洋基（New York Yankees）的比赛中，前七局保持无安打，却在第八局因捕手Austin Wells击出二垒安打后冒险冲三垒遭触杀而出局，无安打比赛就此破功——形成“击出安打却同时出局”的罕见局面。这是自1980年Lou Piniella以来，首次有无安打比赛在第八局或之后以这种方式被打破。Rasmussen连续两场先发对洋基均将无安打带入第七局，为1974年以来唯一一人。
+
+芝加哥白袜（Chicago White Sox）后援投手Grant Taylor在客场对克利夫兰守护者（Cleveland Guardians）的比赛中，后援四局拿下救援成功，助球队以3比0取胜。这是自1969年现代救援规则设立以来，季后赛第六次出现四局以上的救援成功，且仅第三次出现在分差三分以内的比赛中。Taylor两场季后赛累计11次三振并终结两场比赛，创下罕见纪录。
+
+密尔沃基酿酒人（Milwaukee Brewers）主场American Family Field的穹顶再次成为焦点：Ty France在第九局击出一记看似制胜全垒打的飞球，却被穹顶挡下，落入Jackson Chourio手套。文章回顾了穹顶球场历史上的多次诡异事件，包括1984年Dave Kingman的球卡在Metrodome屋顶、1999年Jose Canseco在Tropicana Field两次将球卡入走道、1974年Mike Schmidt在Astrodome击中扬声器仅得一支一垒安打等。
+
+其他亮点：Max Muncy创下道奇队史季后赛全垒打纪录（17支）；白袜队本赛季季后赛先发投手合计仅投出29个出局数，与2005年夺冠时形成鲜明对比；Jacob Misiorowski单场投出Statcast时代季后赛最快球速前三名（104.8、104.6、104.5英里/小时）；白袜与守护者之战中，Munetaka Murakami击出全场最快击球初速（112.2英里/小时）的全垒打，而Colson Montgomery以64.0英里/小时的击球初速打出二垒安打，为其全年55支长打中击球初速最低的一支。
+
+🔗 原文链接：https://www.nytimes.com/athletic/7657896/2026/10/04/mlb-playoffs-division-series-day-1-highlights/
+====================
+本次预计消耗 Token 数：6,000
